@@ -1,6 +1,7 @@
 use ndarray::prelude::*;
-use ndarray::{Array, Array1, Array2, Axis};
+use ndarray::{Array};
 
+#[derive(Debug)]
 pub struct Variable<T> {
     pub data:T,
 }
@@ -13,5 +14,6 @@ impl <T> Variable<T> {
 
 fn main() {
     let x = array![[1.0]];
-    println!("x {:?}",x);
+    let y = Variable::new(x);
+    println!("y {:?}",y);
 }
