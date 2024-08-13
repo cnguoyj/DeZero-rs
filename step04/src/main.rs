@@ -32,7 +32,33 @@ impl Function<f64> for Square {
     }
 }
 
-fn numerical_diff(f:&Square,x:&Variable<f64>,eps:f64) -> Variable<f64> {
+struct Exp {}
+
+impl Function<f64> for Exp {
+    fn forward(&self,x:&Variable<f64>) -> Variable<f64> {
+        let nd = Array1::from_vec(x.data.clone());
+        let exp = nd.map(|nd| nd.exp());
+        Variable { data:exp.into_raw_vec() }
+    }
+}
+
+struct Derivatives {}
+
+impl Function<f64> for Derivatives {
+    fn forward(&self,x:&Variable<f64>) -> Variable<f64> {
+        let A = Square {};
+        let B = Exp {};
+        let C = Square {};
+
+        let a = A.call(x);
+        let b = B.call(&a);
+        let c = C.call(&b);
+
+        c
+    }
+}
+
+fn numerical_diff(f:impl Function<f64>,x:&Variable<f64>,eps:f64) -> Variable<f64> {
     let var = Array1::from_vec(x.data.clone());
     let beh_var = &var - eps;
     let bef_var = &var + eps;
@@ -57,7 +83,18 @@ fn main() {
     println!("x {:?}",x);
 
     let square_fun = Square {};
-    let dy = numerical_diff(&square_fun,&x,1e-4);
+    let dy = numerical_diff(square_fun,&x,1e-4);
+    println!("dy {:?}",dy);
+    let nd_dy = Array1::from_vec(dy.data.clone());
+    println!("nd_dy: {:?}", nd_dy);
+
+    let nd_x = array![[0.5]];
+    println!("nd_x {:?}",nd_x);
+    let x = Variable::new(nd_x.into_raw_vec());
+    println!("x {:?}",x);
+
+    let derivatives_fun = Derivatives {};
+    let dy = numerical_diff(derivatives_fun,&x,1e-4);
     println!("dy {:?}",dy);
     let nd_dy = Array1::from_vec(dy.data.clone());
     println!("nd_dy: {:?}", nd_dy);
