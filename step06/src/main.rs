@@ -27,7 +27,7 @@ trait Function<U> {
         unimplemented!("forward not Implemented");
     }
 
-    fn backward(&self,gy:&Variable<U>) -> Variable<U> {
+    fn backward(&self,gy:&Variable<U>) -> Vec<U> {
         unimplemented!("forward not Implemented");
     }
 
@@ -50,16 +50,13 @@ impl Function<f64> for Square {
          }
     }
 
-    fn backward(&self,gy:&Variable<f64>) -> Variable<f64> {
+    fn backward(&self,gy:&Variable<f64>) -> Vec<f64> {
         let nd_input = Array1::from_vec(self.input.data.clone());
-        let nd_gy = Array1::from_vec(gy.data.clone());
+        let nd_gy = Array1::from_vec(gy.grad.clone());
 
         let nd_gx = 2.0*&nd_input*&nd_gy;
 
-        Variable { 
-            data:nd_gx.into_raw_vec(),
-            grad:Vec::with_capacity(0),
-         }
+        nd_gx.into_raw_vec()
     }
 
     fn update_input(&mut self, input: &Variable<f64>) {
@@ -81,17 +78,14 @@ impl Function<f64> for Exp {
         }
     }
 
-    fn backward(&self,gy:&Variable<f64>) -> Variable<f64> {
+    fn backward(&self,gy:&Variable<f64>) -> Vec<f64> {
         let nd_input = Array1::from_vec(self.input.data.clone());
-        let nd_gy = Array1::from_vec(gy.data.clone());
+        let nd_gy = Array1::from_vec(gy.grad.clone());
 
         let nd_exp = nd_input.map(|nd| nd.exp());
         let nd_gx = &nd_exp*&nd_gy;
 
-        Variable { 
-            data:nd_gx.into_raw_vec(),
-            grad:Vec::with_capacity(0),
-         }
+        nd_gx.into_raw_vec()
     }
 
     fn update_input(&mut self, input: &Variable<f64>) {
@@ -120,8 +114,15 @@ fn main() {
     let mut a = A.call(&x);
     let mut b = B.call(&a);
     let mut y = C.call(&b);
-    println!("y {:?}",y);
+    println!("y {:?}",y.data);
 
     let nd_y = Array1::from_vec(y.data.clone());
     println!("nd_y: {:?}", nd_y);
+
+    let nd_y_grad = array![[1.0]];
+    y.grad = nd_y_grad.into_raw_vec();
+    b.grad = C.backward(&y);
+    a.grad = B.backward(&b);
+    x.grad = A.backward(&a);
+    println!("x {:?}",x);
 }
