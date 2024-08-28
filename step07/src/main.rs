@@ -16,7 +16,7 @@ pub enum GradientFunction {
 pub struct Variable<T> {
     pub data:Rc<RefCell<Vec<T>>>,
     pub grad:Rc<RefCell<Vec<T>>>,
-    pub creator:Option<Rc<RefCell<Box<GradientFunction>>>>,
+    pub creator:Option<Rc<RefCell<GradientFunction>>>,
 }
 
 impl <T> Variable<T> {
@@ -29,14 +29,14 @@ impl <T> Variable<T> {
         }))
     }
 
-    fn set_creator(&mut self, func: &Rc<RefCell<Box<GradientFunction>>>) {
+    fn set_creator(&mut self, func: &Rc<RefCell<GradientFunction>>) {
         self.creator = Some(func.clone());
     }
 }
 
 trait Function<U> {
     fn call(&mut self,input:&Rc<RefCell<Variable<U>>>) -> Rc<RefCell<Variable<U>>> {
-        let mut output = self.forward(input);
+        let output = self.forward(input);
         
         self.update_input(input);
         self.update_ouput(&output);
@@ -51,6 +51,10 @@ trait Function<U> {
         unimplemented!("forward not Implemented");
     }
 
+    fn backward(&self,gy:&Rc<RefCell<Vec<U>>>) -> Vec<U> {
+        unimplemented!("backward not Implemented");
+    }
+
     fn update_input(&mut self, input: &Rc<RefCell<Variable<U>>>) {
         unimplemented!("update_input not Implemented");
     }
@@ -59,7 +63,7 @@ trait Function<U> {
         unimplemented!("update_ouput not Implemented");
     }
 
-    fn get_creator(&mut self) -> Rc<RefCell<Box<GradientFunction>>> {
+    fn get_creator(&mut self) -> Rc<RefCell<GradientFunction>> {
         unimplemented!("get_creator not Implemented");
     }
 }
@@ -82,6 +86,15 @@ impl Function<f64> for Square {
         }))
     }
 
+    fn backward(&self,gy:&Rc<RefCell<Vec<f64>>>) -> Vec<f64> {
+        let nd_input = Array1::from_vec(self.input.borrow().data.borrow().clone());
+        let nd_gy = Array1::from_vec(gy.borrow().clone());
+
+        let nd_gx = 2.0*&nd_input*&nd_gy;
+
+        nd_gx.into_raw_vec()
+    }
+
     fn update_input(&mut self, input: &Rc<RefCell<Variable<f64>>>) {
         self.input = input.clone();
     }
@@ -90,10 +103,10 @@ impl Function<f64> for Square {
         self.output = output.clone();
     }
 
-    fn get_creator(&mut self) -> Rc<RefCell<Box<GradientFunction>>> {
+    fn get_creator(&mut self) -> Rc<RefCell<GradientFunction>> {
         let obj = Rc::new(self.clone());
         let x = Rc::downgrade(&obj);
-        Rc::new(RefCell::new(Box::new(GradientFunction::Square(RefCell::new(x)))))
+        Rc::new(RefCell::new(GradientFunction::Square(RefCell::new(x))))
     }
 }
 
@@ -115,6 +128,16 @@ impl Function<f64> for Exp {
         }))
     }
 
+    fn backward(&self,gy:&Rc<RefCell<Vec<f64>>>) -> Vec<f64> {
+        let nd_input = Array1::from_vec(self.input.borrow().data.borrow().clone());
+        let nd_gy = Array1::from_vec(gy.borrow().clone());
+
+        let nd_exp = nd_input.map(|nd| nd.exp());
+        let nd_gx = &nd_exp*&nd_gy;
+
+        nd_gx.into_raw_vec()
+    }
+
     fn update_input(&mut self, input: &Rc<RefCell<Variable<f64>>>) {
         self.input = input.clone();
     }
@@ -123,12 +146,14 @@ impl Function<f64> for Exp {
         self.output = output.clone();
     }
 
-    fn get_creator(&mut self) -> Rc<RefCell<Box<GradientFunction>>> {
+    fn get_creator(&mut self) -> Rc<RefCell<GradientFunction>> {
         let obj = Rc::new(self.clone());
         let x = Rc::downgrade(&obj);
-        Rc::new(RefCell::new(Box::new(GradientFunction::Exp(RefCell::new(x)))))
+        Rc::new(RefCell::new(GradientFunction::Exp(RefCell::new(x))))
     }
 }
+
+
 
 fn main() {
     let A = Rc::new(RefCell::new(Square {
@@ -160,4 +185,23 @@ fn main() {
     println!("y {:?}",y.borrow());
     println!("y.data {:?}",y.borrow().data.borrow());
 
+    let nd_y_grad = array![[1.0]];
+    println!("nd_y_grad {:?}",nd_y_grad);
+    let y_grad_vec:Vec<f64> = nd_y_grad.into_raw_vec();
+    println!("y_grad_vec {:?}",y_grad_vec);
+
+    *y.borrow().grad.borrow_mut() = y_grad_vec;
+    *b.borrow().grad.borrow_mut() = C.borrow_mut().backward(&y.borrow().grad);
+    *a.borrow().grad.borrow_mut() = B.borrow_mut().backward(&b.borrow().grad);
+    *x.borrow().grad.borrow_mut() = A.borrow_mut().backward(&a.borrow().grad);
+    println!("x {:?}",x);
+    if let Some(creator_rc) = &b.clone().borrow().creator {
+        let creator = creator_rc.borrow();
+        match &*creator {
+            GradientFunction::Square(_) => println!("b Creator is Square"),
+            GradientFunction::Exp(_) => println!("b Creator is Exp"),
+        }
+    } else {
+        println!("No creator");
+    }
 }
