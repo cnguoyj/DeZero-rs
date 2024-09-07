@@ -32,54 +32,55 @@ impl Variable {
     fn set_creator(&mut self, func: &Rc<RefCell<GradientFunction>>) {
         self.creator = Some(func.clone());
     }
-
-    //  recursive
+    
+    //  loop
     fn backward(&mut self) {
-        if let Some(creator_rc) = &self.creator {
-            let creator = creator_rc.borrow();
-            match &*creator {
-                GradientFunction::Square(square_ref) => {
-                    //println!("square_ref {:?}",square_ref);
-                    let square_rc = square_ref.borrow().upgrade();
-                    //println!("square_rc {:?}",square_rc);
+        let var_rc = Rc::new(RefCell::new(self.to_owned()));
+        let mut stack = vec![var_rc]; 
 
-                     match square_rc {
-                        Some(ref square) => {
-                            let x = &square.input;
-                            let gy = self.grad.clone();
-                            //println!("square {:?}",square.clone());
-                            *x.borrow().grad.borrow_mut() = square.backward(&gy);
-                            x.borrow_mut().backward();
-                        },
-                        None => {
-                            //println!("Variable square_rc Creator None");
-                        },
+        while let Some(currentVar) = stack.pop() {
+            let current = currentVar.borrow_mut();
+            if let Some(creator_rc) = &current.creator {
+                let creator = creator_rc.borrow();
+                match &*creator {
+                    GradientFunction::Square(square_ref) => {
+                        let square_rc = square_ref.borrow().upgrade();
+
+                        match square_rc {
+                            Some(ref square) => {
+                                let x = &square.input;
+                                let gy = current.grad.clone();
+                                *x.borrow().grad.borrow_mut() = square.backward(&gy);
+                                let var = x.borrow_mut().to_owned();
+                                let var_rc = Rc::new(RefCell::new(var));
+                                stack.push(var_rc); 
+                            },
+                            None => {
+                                // println!("Variable square_rc Creator None");
+                            },
+                        }
+                    },
+                    GradientFunction::Exp(exp_ref) => {
+                        let exp_rc = exp_ref.borrow().upgrade();
+
+                        match exp_rc {
+                            Some(ref exp) => {
+                                let x = &exp.input;
+                                let gy = current.grad.clone();
+                                *x.borrow().grad.borrow_mut() = exp.backward(&gy);
+                                let var = x.borrow_mut().to_owned();
+                                let var_rc = Rc::new(RefCell::new(var));
+                                stack.push(var_rc); 
+                            },
+                            None => {
+                                // println!("Variable exp_rc Creator None");
+                            },
+                        }
                     }
-                },
-                GradientFunction::Exp(exp_ref) => {
-                    let exp_rc = exp_ref.borrow().upgrade();
-                    //println!("exp_rc {:?}",exp_rc);
-
-                    match exp_rc {
-                       Some(ref exp) => {
-                           let x = &exp.input;
-                           let gy = self.grad.clone();
-                           //println!("Exp {:?}",exp.clone());
-                           *x.borrow().grad.borrow_mut() = exp.backward(&gy);
-                           x.borrow_mut().backward();
-                       },
-                       None => {
-                            //println!("Variable exp_rc Creator None");
-                       },
-                   }
                 }
             }
+            // 如果没有 creator，循环将继续处理其他变量
         }
-        /* 
-        else {
-            println!("No Creator");
-        }
-        */
     }
 }
 
