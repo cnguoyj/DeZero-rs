@@ -38,8 +38,8 @@ impl Variable {
         let var_rc = Rc::new(RefCell::new(self.to_owned()));
         let mut stack = vec![var_rc]; 
 
-        while let Some(currentVar) = stack.pop() {
-            let current = currentVar.borrow_mut();
+        while let Some(current_var) = stack.pop() {
+            let current = current_var.borrow_mut();
             if let Some(creator_rc) = &current.creator {
                 let creator = creator_rc.borrow();
                 match &*creator {
@@ -231,11 +231,11 @@ fn main() {
     }));
 
     let nd_x = array![[0.5]];
-    let mut x = Variable::new(Rc::new(RefCell::new(nd_x.into_raw_vec())));
+    let x = Variable::new(Rc::new(RefCell::new(nd_x.into_raw_vec())));
 
-    let mut a = A.borrow_mut().call(&x);
-    let mut b = B.borrow_mut().call(&a);
-    let mut y = C.borrow_mut().call(&b);
+    let a = A.borrow_mut().call(&x);
+    let b = B.borrow_mut().call(&a);
+    let y = C.borrow_mut().call(&b);
     println!("y.data {:?}",y.borrow().data.borrow());
 
     let nd_y_grad = array![[1.0]];
